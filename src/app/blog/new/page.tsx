@@ -23,13 +23,17 @@ export default function NewBlogPage() {
     }
   }, [router]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title || !content) return;
     setIsSaving(true);
-    saveBlog({ title, content });
-    setTimeout(() => {
+    try {
+      await saveBlog({ title, content });
       router.push("/blog");
-    }, 500);
+    } catch (error) {
+      console.error("Failed to save blog:", error);
+      setIsSaving(false);
+      alert("Failed to publish the post. Please try again.");
+    }
   };
 
   return (

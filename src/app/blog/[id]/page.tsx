@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, Heart, Share2, Calendar, User, ChevronRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getBlogs, type BlogPost, likeBlog, isAdmin, deleteBlog } from "@/lib/blog-store";
+import { getBlogById, type BlogPost, likeBlog, isAdmin, deleteBlog } from "@/lib/blog-store";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 
@@ -17,28 +17,30 @@ export default function BlogPostDetail({ params }: { params: Promise<{ id: strin
   const [admin, setAdmin] = useState(false);
 
   useEffect(() => {
+    const fetchBlog = async () => {
+      const found = await getBlogById(id);
+      if (found) {
+        setBlog(found);
+      } else {
+        router.push("/blog");
+      }
+    };
+    fetchBlog();
     setAdmin(isAdmin());
-    const allBlogs = getBlogs();
-    const found = allBlogs.find((b) => b.id === id);
-    if (found) {
-      setBlog(found);
-    } else {
-      router.push("/blog");
-    }
   }, [id, router]);
 
-  const handleLike = () => {
+  const handleLike = async () => {
     if (!blog) return;
-    const updated = likeBlog(blog.id);
+    const updated = await likeBlog(blog.id, blog.likes);
     if (updated) {
       setBlog(updated);
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!blog) return;
     if (window.confirm("Are you sure you want to delete this post?")) {
-      deleteBlog(blog.id);
+      await deleteBlog(blog.id);
       router.push("/blog");
     }
   };

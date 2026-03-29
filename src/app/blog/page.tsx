@@ -14,23 +14,28 @@ export default function BlogPage() {
   const [admin, setAdmin] = useState(false);
 
   useEffect(() => {
-    setBlogs(getBlogs());
+    const fetchBlogs = async () => {
+      const data = await getBlogs();
+      setBlogs(data);
+    };
+    fetchBlogs();
     setAdmin(isAdmin());
   }, []);
 
-  const handleLike = (id: string, e: React.MouseEvent) => {
+  const handleLike = async (id: string, currentLikes: number, e: React.MouseEvent) => {
     e.preventDefault();
-    const updated = likeBlog(id);
+    const updated = await likeBlog(id, currentLikes);
     if (updated) {
       setBlogs((prev) => prev.map((b) => (b.id === id ? updated : b)));
     }
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     if (window.confirm("Are you sure you want to delete this post?")) {
-      deleteBlog(id);
-      setBlogs(getBlogs());
+      await deleteBlog(id);
+      const data = await getBlogs();
+      setBlogs(data);
     }
   };
 
@@ -115,7 +120,7 @@ export default function BlogPage() {
                             </button>
                           )}
                           <button
-                            onClick={(e) => handleLike(blog.id, e)}
+                            onClick={(e) => handleLike(blog.id, blog.likes, e)}
                             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors bg-muted/50 px-3 py-1 rounded-full"
                           >
                             <Heart className={`size-4 ${blog.likes > 0 ? "fill-primary text-primary" : ""}`} />
