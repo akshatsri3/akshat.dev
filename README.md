@@ -46,12 +46,6 @@ A premium, minimalist developer portfolio built with **Next.js 15**, **TypeScrip
 
 4. Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## 🔐 Admin Access
 
-The blog section includes a secret administrative mode to create and delete posts.
-- **Trigger**: Click the Copyright text in the footer **3 times** while on the `/blog` page.
-- **Passcode**: Enter the preset passcode to enable Write/Delete permissions.
-
----
 
 Built with intent by [Akshat Srivastava](https://github.com/akshatsri3).
