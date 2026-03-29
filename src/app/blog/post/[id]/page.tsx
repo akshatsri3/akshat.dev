@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, Heart, Share2, Calendar, User, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getBlogs, type BlogPost, likeBlog } from "@/lib/blog-store";
+import { getBlogById, type BlogPost, likeBlog } from "@/lib/blog-store";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 
@@ -16,18 +16,20 @@ export default function BlogPostDetail({ params }: { params: Promise<{ id: strin
   const [blog, setBlog] = useState<BlogPost | null>(null);
 
   useEffect(() => {
-    const allBlogs = getBlogs();
-    const found = allBlogs.find((b) => b.id === id);
-    if (found) {
-      setBlog(found);
-    } else {
-      router.push("/blog");
-    }
+    const fetchBlog = async () => {
+      const found = await getBlogById(id);
+      if (found) {
+        setBlog(found);
+      } else {
+        router.push("/blog");
+      }
+    };
+    fetchBlog();
   }, [id, router]);
 
-  const handleLike = () => {
+  const handleLike = async () => {
     if (!blog) return;
-    const updated = likeBlog(blog.id);
+    const updated = await likeBlog(blog.id, blog.likes);
     if (updated) {
       setBlog(updated);
     }
