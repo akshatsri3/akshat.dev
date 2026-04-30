@@ -168,7 +168,18 @@ export const MobileNavToggle = ({
   );
 };
 
-export const NavbarLogo = () => {
+export const NavbarLogo = ({ onLogoClick }: { onLogoClick?: () => void }) => {
+  if (onLogoClick) {
+    return (
+      <button
+        onClick={onLogoClick}
+        className="relative z-20 flex items-center space-x-2 text-xl font-bold tracking-tighter text-white hover:text-primary transition-colors"
+        aria-label="Open terminal"
+      >
+        Akshat
+      </button>
+    );
+  }
   return (
     <a
       href="/"

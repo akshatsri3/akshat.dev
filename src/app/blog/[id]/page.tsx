@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { ArrowLeft, Heart, Share2, Calendar, User, ChevronRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getBlogById, type BlogPost, likeBlog, isAdmin, deleteBlog } from "@/lib/blog-store";
+import { getBlogById, type BlogPost, likeBlog, isAdmin, deleteBlog, hasUserLikedBlog } from "@/lib/blog-store";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 
@@ -14,6 +14,7 @@ export default function BlogPostDetail({ params }: { params: Promise<{ id: strin
   const router = useRouter();
   const { id } = use(params);
   const [blog, setBlog] = useState<BlogPost | null>(null);
+  const [liked, setLiked] = useState(false);
   const [admin, setAdmin] = useState(false);
 
   useEffect(() => {
@@ -21,6 +22,8 @@ export default function BlogPostDetail({ params }: { params: Promise<{ id: strin
       const found = await getBlogById(id);
       if (found) {
         setBlog(found);
+        const hasLiked = await hasUserLikedBlog(id);
+        setLiked(hasLiked);
       } else {
         router.push("/blog");
       }
@@ -34,6 +37,7 @@ export default function BlogPostDetail({ params }: { params: Promise<{ id: strin
     const updated = await likeBlog(blog.id, blog.likes);
     if (updated) {
       setBlog(updated);
+      setLiked(!liked);
     }
   };
 
@@ -79,7 +83,7 @@ export default function BlogPostDetail({ params }: { params: Promise<{ id: strin
                 onClick={handleLike}
                 className="flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full text-primary hover:bg-primary/20 transition-all font-bold text-sm group"
               >
-                <Heart className={`size-4 group-active:scale-125 transition-transform ${blog.likes > 0 ? "fill-primary" : ""}`} />
+                <Heart className={`size-4 group-active:scale-125 transition-transform ${liked ? "fill-primary" : ""}`} />
                 {blog.likes}
               </button>
             </div>
@@ -101,9 +105,9 @@ export default function BlogPostDetail({ params }: { params: Promise<{ id: strin
                 <div className="flex flex-col items-center gap-2">
                   <button 
                     onClick={handleLike}
-                    className={`p-3 rounded-full border transition-all duration-300 ${blog.likes > 0 ? "bg-red-500/10 border-red-500/50 text-red-500 shadow-lg shadow-red-500/20" : "border-border hover:border-red-500/50 text-muted-foreground hover:text-red-500"}`}
+                    className={`p-3 rounded-full border transition-all duration-300 ${liked ? "bg-red-500/10 border-red-500/50 text-red-500 shadow-lg shadow-red-500/20" : "border-border hover:border-red-500/50 text-muted-foreground hover:text-red-500"}`}
                   >
-                    <Heart className={`size-5 ${blog.likes > 0 ? "fill-current" : ""}`} />
+                    <Heart className={`size-5 ${liked ? "fill-current" : ""}`} />
                   </button>
                   <p className="text-xs font-medium text-muted-foreground">{blog.likes} {blog.likes === 1 ? 'like' : 'likes'}</p>
                 </div>

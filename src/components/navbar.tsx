@@ -14,6 +14,7 @@ import {
   MobileNavMenu 
 } from "@/components/ui/resizable-navbar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Terminal } from "@/components/terminal";
 
 const navLinks = [
   { name: "About Me", link: "/about" },
@@ -26,59 +27,68 @@ const navLinks = [
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
 
   return (
-    <ResizableNavbar>
-      {/* Desktop Navigation */}
-      <NavBody>
-        <NavbarLogo />
-        <NavItems items={navLinks} />
-        <div className="flex items-center gap-4">
-          <ThemeToggle />
-          <NavbarButton href="/blog" variant="secondary">
-            My Blogs
-          </NavbarButton>
-        </div>
-      </NavBody>
-
-      {/* Mobile Navigation */}
-      <MobileNav>
-        <MobileNavHeader>
-          <NavbarLogo />
-          <div className="flex items-center gap-2">
+    <>
+      <ResizableNavbar>
+        {/* Desktop Navigation */}
+        <NavBody>
+          <NavbarLogo onLogoClick={() => setIsTerminalOpen(true)} />
+          <NavItems items={navLinks} />
+          <div className="flex items-center gap-4">
             <ThemeToggle />
-            <MobileNavToggle
-              isOpen={isMobileMenuOpen}
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            />
-          </div>
-        </MobileNavHeader>
-
-        <MobileNavMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)}>
-          <div className="flex flex-col gap-4 py-4 border-t border-white/5">
-            {navLinks.map((item, idx) => (
-              <Link
-                key={`mobile-link-${idx}`}
-                href={item.link}
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="text-lg font-medium text-neutral-400 hover:text-white transition-colors px-2"
-              >
-                {item.name}
-              </Link>
-            ))}
-          </div>
-          <div className="flex w-full flex-col gap-3 pt-4 border-t border-white/5">
-            <NavbarButton
-              href="/blog"
-              onClick={() => setIsMobileMenuOpen(false)}
-              variant="secondary"
-              className="w-full"
-            >
+            <NavbarButton href="/blog" variant="secondary">
               My Blogs
             </NavbarButton>
           </div>
-        </MobileNavMenu>
-      </MobileNav>
-    </ResizableNavbar>
+        </NavBody>
+
+        {/* Mobile Navigation */}
+        <MobileNav>
+          <MobileNavHeader>
+            <NavbarLogo onLogoClick={() => setIsTerminalOpen(true)} />
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <MobileNavToggle
+                isOpen={isMobileMenuOpen}
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              />
+            </div>
+          </MobileNavHeader>
+
+          <MobileNavMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)}>
+            <div className="flex flex-col gap-4 py-4 border-t border-white/5">
+              {navLinks.map((item, idx) => (
+                <Link
+                  key={`mobile-link-${idx}`}
+                  href={item.link}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="text-lg font-medium text-neutral-400 hover:text-white transition-colors px-2"
+                >
+                  {item.name}
+                </Link>
+              ))}
+            </div>
+            <div className="flex w-full flex-col gap-3 pt-4 border-t border-white/5">
+              <NavbarButton
+                href="/blog"
+                onClick={() => setIsMobileMenuOpen(false)}
+                variant="secondary"
+                className="w-full"
+              >
+                My Blogs
+              </NavbarButton>
+            </div>
+          </MobileNavMenu>
+        </MobileNav>
+      </ResizableNavbar>
+
+      {/* Floating Terminal */}
+      <Terminal
+        isOpen={isTerminalOpen}
+        onClose={() => setIsTerminalOpen(false)}
+      />
+    </>
   );
 }

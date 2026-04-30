@@ -9,6 +9,17 @@ export interface BlogPost {
   created_at?: string;
 }
 
+// Helper to get or create a persistent unique visitor ID
+export const getVisitorId = (): string => {
+  if (typeof window === "undefined") return "server-side";
+  let visitorId = localStorage.getItem("visitor_id");
+  if (!visitorId) {
+    visitorId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem("visitor_id", visitorId);
+  }
+  return visitorId;
+};
+
 export const getBlogs = async (): Promise<BlogPost[]> => {
   const { data, error } = await supabase
     .from("blogs")
@@ -79,7 +90,61 @@ export const saveBlog = async (blog: Omit<BlogPost, "id" | "date" | "likes">) =>
   return data;
 };
 
+// Check if current user has liked a blog
+export const hasUserLikedBlog = async (blogId: string): Promise<boolean> => {
+  const visitorId = getVisitorId();
+  const { data, error } = await supabase
+    .from("blog_likes")
+    .select("id")
+    .eq("blog_id", blogId)
+    .eq("visitor_id", visitorId)
+    .single();
+  
+  return !!data;
+};
+
+// Get all blog IDs liked by the current user
+export const getUserLikedBlogs = async (): Promise<string[]> => {
+  const visitorId = getVisitorId();
+  const { data, error } = await supabase
+    .from("blog_likes")
+    .select("blog_id")
+    .eq("visitor_id", visitorId);
+  
+  if (error || !data) return [];
+  return data.map(item => item.blog_id);
+};
+
 export const likeBlog = async (id: string, currentLikes: number) => {
+  const visitorId = getVisitorId();
+  
+  // Try to insert a like record
+  const { error: likeError } = await supabase
+    .from("blog_likes")
+    .insert([{ blog_id: id, visitor_id: visitorId }]);
+
+  if (likeError) {
+    // If it's a conflict (already liked), then "unlike"
+    if (likeError.code === '23505') {
+      await supabase
+        .from("blog_likes")
+        .delete()
+        .eq("blog_id", id)
+        .eq("visitor_id", visitorId);
+      
+      const { data } = await supabase
+        .from("blogs")
+        .update({ likes: Math.max(0, currentLikes - 1) })
+        .eq("id", id)
+        .select()
+        .single();
+      return data;
+    }
+    console.error("Error updating likes:", likeError);
+    return null;
+  }
+
+  // If insert was successful, increment current count
   const { data, error } = await supabase
     .from("blogs")
     .update({ likes: currentLikes + 1 })
