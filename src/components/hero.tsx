@@ -131,7 +131,7 @@ export function Hero() {
           className="max-w-2xl mx-auto text-lg md:text-xl text-muted-foreground mb-12"
         >
           I'm a Full-stack Developer specializing in building high-performance,
-          accessible,that solve real-world problems.
+          accessible apps,that solve real-world problems.
         </motion.p>
 
         <motion.div
