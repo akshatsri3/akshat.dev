@@ -7,6 +7,9 @@ import {
 } from "framer-motion";
 
 import React, { useState } from "react";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { TerminalBranding } from "@/components/terminal-branding";
 
 
 interface NavbarProps {
@@ -168,25 +171,42 @@ export const MobileNavToggle = ({
   );
 };
 
+
 export const NavbarLogo = ({ onLogoClick }: { onLogoClick?: () => void }) => {
-  if (onLogoClick) {
+  const pathname = usePathname();
+  const isHomePage = pathname === "/";
+
+  if (!isHomePage) {
     return (
-      <button
-        onClick={onLogoClick}
-        className="relative z-20 flex items-center space-x-2 text-xl font-bold tracking-tighter text-white hover:text-primary transition-colors"
-        aria-label="Open terminal"
+      <Link
+        href="/"
+        aria-label="Back to home"
+        className="group relative z-20 inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-white hover:bg-white/5 transition-all duration-200"
       >
-        Akshat
-      </button>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.75"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="transition-transform duration-200 group-hover:-translate-y-0.5"
+        >
+          <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z" />
+          <path d="M9 21V12h6v9" />
+        </svg>
+      </Link>
     );
   }
+
   return (
-    <a
-      href="/"
-      className="relative z-20 flex items-center space-x-2 text-xl font-bold tracking-tighter text-white hover:text-primary transition-colors"
-    >
-      Akshat
-    </a>
+    <TerminalBranding 
+      onClick={onLogoClick} 
+      className="relative z-20"
+    />
   );
 };
 

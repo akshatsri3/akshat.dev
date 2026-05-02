@@ -49,35 +49,6 @@ export default function ClicksPage() {
 
       <main className="flex-grow container mx-auto px-6 pt-6 md:pt-8 pb-12 md:pb-24">
         <div className="max-w-6xl mx-auto">
-          {/* Back Button */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mb-8"
-          >
-            <Link
-              href="/"
-              aria-label="Back to home"
-              className="group inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-primary hover:bg-white/5 transition-all duration-200"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="transition-transform duration-200 group-hover:-translate-y-0.5"
-              >
-                <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z" />
-                <path d="M9 21V12h6v9" />
-              </svg>
-            </Link>
-          </motion.div>
 
           {/* Header */}
           <div className="text-center mb-0 md:mb-12">
