@@ -55,27 +55,6 @@ export default function BlogPage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex justify-between items-end mb-12">
             <div>
-              <Link
-                href="/"
-                aria-label="Back to home"
-                className="group inline-flex items-center justify-center w-9 h-9 rounded-full text-muted-foreground hover:text-primary hover:bg-white/5 transition-all duration-200 mb-4"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="transition-transform duration-200 group-hover:-translate-y-0.5"
-                >
-                  <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z" />
-                  <path d="M9 21V12h6v9" />
-                </svg>
-              </Link>
               <h1
                 className="text-6xl md:text-8xl font-normal tracking-normal text-gradient py-4"
                 style={{ fontFamily: "var(--font-great-vibes), cursive" }}
