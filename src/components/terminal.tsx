@@ -105,7 +105,7 @@ const COMMANDS: Record<string, CommandHandler> = {
       const repos = await fetchGithubRepos(GITHUB_USERNAME);
       const topRepos = repos.slice(0, 4);
       
-      const outputLines = [
+      const outputLines: { type: TerminalLine["type"]; text: string; href?: string }[] = [
         { type: "info" as const, text: `$ fetching latest work from @${GITHUB_USERNAME}...` },
         { type: "output" as const, text: "" },
       ];
