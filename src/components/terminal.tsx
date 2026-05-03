@@ -9,7 +9,10 @@ interface TerminalLine {
   id: number;
   type: "system" | "prompt" | "output" | "error" | "success" | "info";
   text: string;
+  href?: string;
 }
+
+const GITHUB_USERNAME = "akshatsri3";
 
 // ─── Boot sequence ────────────────────────────────────────────────────────────
 const BOOT_LINES = [
@@ -20,16 +23,19 @@ const BOOT_LINES = [
   { text: 'Type "help" to see available commands.', delay: 2300 },
 ];
 
+import { fetchGithubRepos, formatTimeAgo } from "@/lib/github";
+
 // ─── Command registry ─────────────────────────────────────────────────────────
 type CommandOutput = TerminalLine[];
+type CommandHandler = (args: string[]) => CommandOutput | Promise<CommandOutput>;
 
 function buildOutput(
-  lines: { type: TerminalLine["type"]; text: string }[]
+  lines: { type: TerminalLine["type"]; text: string; href?: string }[]
 ): CommandOutput {
   return lines.map((l, i) => ({ id: Date.now() + i, ...l }));
 }
 
-const COMMANDS: Record<string, () => CommandOutput> = {
+const COMMANDS: Record<string, CommandHandler> = {
   help: () =>
     buildOutput([
       { type: "info", text: "┌─────────────────────────────────────────┐" },
@@ -41,6 +47,7 @@ const COMMANDS: Record<string, () => CommandOutput> = {
       { type: "success", text: "  contact     →  Navigate to contact" },
       { type: "success", text: "  resume      →  Download my resume" },
       { type: "success", text: "  current     →  What I'm building now" },
+      { type: "success", text: "  open [repo] →  Open a GitHub repository" },
       { type: "success", text: "  clear       →  Clear terminal" },
       { type: "info", text: "└─────────────────────────────────────────┘" },
     ]),
@@ -93,18 +100,53 @@ const COMMANDS: Record<string, () => CommandOutput> = {
       { type: "success", text: "  ✓ resume.pdf downloaded successfully" },
     ]),
 
-  current: () =>
-    buildOutput([
-      { type: "info", text: "$ git log --oneline -1" },
-      { type: "output", text: "" },
-      {
-        type: "success",
-        text: "  🚧 Building akshat.dev — personal portfolio v2",
-      },
-      { type: "output", text: "  📦 Experimenting with AI-powered side projects" },
-      { type: "output", text: "  📸 Curating a photography collection" },
-      { type: "output", text: "  📚 Reading: Clean Code · Cosmos (Carl Sagan)" },
-    ]),
+  current: async () => {
+    try {
+      const repos = await fetchGithubRepos(GITHUB_USERNAME);
+      const topRepos = repos.slice(0, 4);
+      
+      const outputLines = [
+        { type: "info" as const, text: `$ fetching latest work from @${GITHUB_USERNAME}...` },
+        { type: "output" as const, text: "" },
+      ];
+
+      topRepos.forEach(repo => {
+        outputLines.push({
+          type: "success" as const,
+          text: `  ✔ ${repo.name.padEnd(20)} (updated ${formatTimeAgo(repo.updated_at)})`,
+          href: repo.html_url
+        });
+      });
+
+      outputLines.push({ type: "output" as const, text: "" });
+      outputLines.push({ type: "info" as const, text: "  Type 'open <repo-name>' to explore more." });
+
+      return buildOutput(outputLines);
+    } catch (error) {
+      return buildOutput([
+        { type: "error", text: "  Unable to fetch latest projects. Please try again later." }
+      ]);
+    }
+  },
+
+  open: async (args) => {
+    if (args.length === 0) {
+      return buildOutput([{ type: "error", text: "  Usage: open <repo-name>" }]);
+    }
+    const repoName = args[0].toLowerCase();
+    try {
+      const repos = await fetchGithubRepos(GITHUB_USERNAME);
+      const repo = repos.find(r => r.name.toLowerCase() === repoName);
+      if (repo) {
+        window.open(repo.html_url, "_blank");
+        return buildOutput([{ type: "success", text: `  ✓ Opening ${repo.name}...` }]);
+      } else {
+        return buildOutput([{ type: "error", text: `  Repository '${repoName}' not found.` }]);
+      }
+    } catch (error) {
+      return buildOutput([{ type: "error", text: "  An error occurred. Please try again later." }]);
+    }
+  },
 
   "sudo access-akshat": () =>
     buildOutput([
@@ -187,16 +229,19 @@ export function Terminal({ isOpen, onClose }: TerminalProps) {
 
   // ── Run command ──────────────────────────────────────────────────────────
   const runCommand = useCallback(
-    (raw: string) => {
-      const cmd = raw.trim().toLowerCase();
+    async (raw: string) => {
+      const parts = raw.trim().split(/\s+/);
+      const cmd = parts[0].toLowerCase();
+      const args = parts.slice(1);
+
       if (!cmd) return;
 
       // echo the prompt line
       setLines((prev) => [
         ...prev,
-        { id: uid(), type: "prompt", text: cmd },
+        { id: uid(), type: "prompt", text: raw.trim() },
       ]);
-      setHistory((h) => [cmd, ...h]);
+      setHistory((h) => [raw.trim(), ...h]);
       setHistoryIdx(-1);
 
       if (cmd === "clear") {
@@ -217,8 +262,22 @@ export function Terminal({ isOpen, onClose }: TerminalProps) {
         return;
       }
 
-      const output = handler();
-      setLines((prev) => [...prev, ...output]);
+      // Handle async commands with loading state
+      let output: CommandOutput;
+      if (cmd === "current") {
+        const loadingId = uid();
+        setLines((prev) => [
+          ...prev,
+          { id: loadingId, type: "system", text: "  Fetching latest work..." },
+        ]);
+        
+        output = await handler(args);
+        
+        setLines((prev) => prev.filter(l => l.id !== loadingId).concat(output));
+      } else {
+        output = await handler(args);
+        setLines((prev) => [...prev, ...output]);
+      }
 
       // side-effects
       if (cmd === "projects") {
@@ -402,7 +461,18 @@ export function Terminal({ isOpen, onClose }: TerminalProps) {
                               ❯
                             </span>
                           )}
-                          <span className={lineClass(line.type)}>{line.text}</span>
+                          {line.href ? (
+                            <a 
+                              href={line.href} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className={`${lineClass(line.type)} hover:underline decoration-violet-500/50 underline-offset-4 cursor-pointer transition-all duration-200 hover:text-white`}
+                            >
+                              {line.text}
+                            </a>
+                          ) : (
+                            <span className={lineClass(line.type)}>{line.text}</span>
+                          )}
                         </div>
                       ))}
                       {/* Blinking idle cursor */}
