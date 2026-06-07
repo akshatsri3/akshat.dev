@@ -53,7 +53,7 @@ export const isAdmin = (): boolean => {
 };
 
 export const adminLogin = (passcode: string): boolean => {
-  if (passcode.toLowerCase() === "akshat") {
+  if (passcode === "Akshat321!") {
     localStorage.setItem("portfolio_admin", "true");
     return true;
   }
