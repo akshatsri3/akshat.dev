@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/resizable-navbar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Terminal } from "@/components/terminal";
+import { WeatherTimeWidget } from "@/components/weather-time-widget";
 
 const navLinks = [
   { name: "About Me", link: "/about" },
@@ -38,6 +39,7 @@ export function Navbar() {
           <NavItems items={navLinks} />
           <div className="flex items-center gap-4">
             <ThemeToggle />
+            <WeatherTimeWidget />
             <NavbarButton href="/blog" variant="secondary">
               My Blogs
             </NavbarButton>
@@ -50,6 +52,7 @@ export function Navbar() {
             <NavbarLogo onLogoClick={() => setIsTerminalOpen(true)} />
             <div className="flex items-center gap-2">
               <ThemeToggle />
+              <WeatherTimeWidget />
               <MobileNavToggle
                 isOpen={isMobileMenuOpen}
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
