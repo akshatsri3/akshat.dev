@@ -22,7 +22,7 @@ const greatVibes = Great_Vibes({
 });
 
 export const metadata: Metadata = {
-  title: "Akshat Srivastava|Tech Enthusiast",
+  title: "Akshat Srivastava",
   description: "Senior Full-stack Developer specializing in building high-performance, accessible, and visually stunning web applications.",
   keywords: ["Full-stack Developer", "React", "Next.js", "TypeScript", "UI/UX Design"],
 };

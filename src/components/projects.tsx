@@ -19,7 +19,23 @@ const projects = [
     description: "An app built to track your expenses and income.",
     image: "/assets/project/expensify.png",
     tags: ["React Native", "Firebase", "Shadcn-UI", "NodeJs"],
-    github: "https://github.com/akshatsri3/Expensify_App",
+    github: "https://github.com/akshatsri3/Expensify",
+
+  },
+  {
+    title: "PAPR Reduction in OFDMA",
+    description: "To study the effects of OFDMA phenomenon in wireless-communication.",
+    image: "/assets/project/paprr.png",
+    tags: ["Python", "Matlab", "Machine Learning"],
+    github: "https://github.com/akshatsri3/PAPR-Reduction-in-OFDMA",
+
+  },
+  {
+    title: "Satellite-Urban-Growth Analysis",
+    description: "Using satellite imagery and machine learning to analyze urban growth in Bangalore.",
+    image: "/assets/project/sat-urban.png",
+    tags: ["Python", "Google-Earth", "Machine Learning"],
+    github: "https://github.com/akshatsri3/Satellite-Based-Urban-Growth-Analysis",
 
   },
 ];
