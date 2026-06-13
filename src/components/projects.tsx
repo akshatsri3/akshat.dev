@@ -25,15 +25,15 @@ const projects = [
   {
     title: "PAPR Reduction in OFDMA",
     description: "To study the effects of OFDMA phenomenon in wireless-communication.",
-    image: "/assets/project/paprr.png",
+    image: "/assets/project/ofdma.png",
     tags: ["Python", "Matlab", "Machine Learning"],
     github: "https://github.com/akshatsri3/PAPR-Reduction-in-OFDMA",
 
   },
   {
     title: "Satellite-Urban-Growth Analysis",
-    description: "Using satellite imagery and machine learning to analyze urban growth in Bangalore.",
-    image: "/assets/project/sat-urban.png",
+    description: "Using satellite imagery and machine learning to analyze urban growth in cities.",
+    image: "/assets/project/sat-urban.jpg",
     tags: ["Python", "Google-Earth", "Machine Learning"],
     github: "https://github.com/akshatsri3/Satellite-Based-Urban-Growth-Analysis",
 
