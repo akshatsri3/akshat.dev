@@ -15,7 +15,7 @@ const projects = [
     demo: "https://chromewebstore.google.com/detail/kdpkhnlloacadjadmepfnpdliglafaaf?utm_source=item-share-cb",
   },
   {
-    title: "Expenisfy",
+    title: "Expensify",
     description: "An app built to track your expenses and income.",
     image: "/assets/project/expensify.png",
     tags: ["React Native", "Firebase", "Shadcn-UI", "NodeJs"],
