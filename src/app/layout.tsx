@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, Geist_Mono, Great_Vibes } from "next/font/google";
+import { Plus_Jakarta_Sans, Geist_Mono, Great_Vibes, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -21,6 +21,13 @@ const greatVibes = Great_Vibes({
   weight: "400",
 });
 
+const cormorantGaramond = Cormorant_Garamond({
+  variable: "--font-cormorant",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  style: ["normal", "italic"],
+});
+
 export const metadata: Metadata = {
   title: "Akshat Srivastava",
   description: "Senior Full-stack Developer specializing in building high-performance, accessible, and visually stunning web applications.",
@@ -36,7 +43,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${plusJakartaSans.variable} ${geistMono.variable} ${greatVibes.variable} h-full antialiased`}
+      className={`${plusJakartaSans.variable} ${geistMono.variable} ${greatVibes.variable} ${cormorantGaramond.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col bg-background text-foreground transition-colors duration-300">
         <ThemeProvider

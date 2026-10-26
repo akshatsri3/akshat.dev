@@ -1,5 +1,5 @@
 import { Navbar } from "@/components/navbar";
-import { Hero } from "@/components/hero";
+import { Hero, HeroBlend } from "@/components/hero";
 import { Projects } from "@/components/projects";
 import { Experience } from "@/components/experience";
 import { Skills } from "@/components/skills";
@@ -12,6 +12,7 @@ export default function Home() {
       <Navbar />
       <main className="flex-grow">
         <Hero />
+        <HeroBlend />
         <Projects />
         <Experience />
         <Skills />

@@ -6,7 +6,7 @@ import {
   AnimatePresence,
 } from "framer-motion";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { TerminalBranding } from "@/components/terminal-branding";
@@ -51,10 +51,36 @@ interface MobileNavMenuProps {
 }
 
 export const Navbar = ({ children, className }: NavbarProps) => {
+  const pathname = usePathname();
+  const isHome = pathname === "/";
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    if (!isHome) return;
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [isHome]);
+
+  const transparent = isHome && !scrolled;
+
   return (
-    <div className={cn("relative z-50 w-full bg-background/50 backdrop-blur-md border-b border-white/5", className)}>
+    <motion.div
+      animate={{
+        backgroundColor: transparent ? "rgba(0,0,0,0)" : undefined,
+        borderColor: transparent ? "rgba(255,255,255,0)" : undefined,
+      }}
+      transition={{ duration: 0.35, ease: "easeInOut" }}
+      className={cn(
+        "sticky top-0 z-50 w-full border-b transition-colors duration-300",
+        transparent
+          ? "bg-transparent border-transparent backdrop-blur-none"
+          : "bg-background/60 backdrop-blur-md border-white/5",
+        className,
+      )}
+    >
       {children}
-    </div>
+    </motion.div>
   );
 };
 
