@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Plus, Heart, MessageSquare, Trash2 } from "lucide-react";
+import { Plus, Heart, MessageSquare, Trash2, Compass, FileText, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getBlogs, type BlogPost, likeBlog, isAdmin, adminLogout, deleteBlog, getUserLikedBlogs } from "@/lib/blog-store";
 import { Navbar } from "@/components/navbar";
@@ -53,6 +53,57 @@ export default function BlogPage() {
 
       <main className="flex-grow pt-6 md:pt-8 pb-20 px-6">
         <div className="max-w-4xl mx-auto">
+          {admin && (
+            <div className="mb-8 p-4 rounded-2xl border border-primary/20 bg-card/60 backdrop-blur-sm flex flex-col md:flex-row items-center justify-between gap-4 shadow-lg shadow-primary/5">
+              <div className="flex items-center gap-3">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+                  Admin Active
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-primary text-primary-foreground shadow-sm flex items-center gap-1.5">
+                    <FileText className="size-3.5" />
+                    <span>Blog Management</span>
+                  </span>
+                  <Link
+                    href="/journal/admin"
+                    className="px-3.5 py-1.5 rounded-full text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1.5"
+                  >
+                    <Compass className="size-3.5 text-primary" />
+                    <span>Journal Management</span>
+                  </Link>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Link href="/blog/new">
+                  <Button size="sm" className="rounded-full gap-1.5 shadow-sm">
+                    <Plus className="size-3.5" /> Write Post
+                  </Button>
+                </Link>
+                <Link href="/journal/admin?action=new">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full gap-1.5 border-primary/40 text-primary hover:bg-primary/10 shadow-sm"
+                  >
+                    <Plus className="size-3.5" /> Add New Trip
+                  </Button>
+                </Link>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full gap-1.5 border-red-500/40 text-red-500 hover:bg-red-500/10"
+                  onClick={() => {
+                    adminLogout();
+                    window.location.reload();
+                  }}
+                >
+                  <LogOut className="size-3.5" /> Logout
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-between items-end mb-12">
             <div>
               <h1

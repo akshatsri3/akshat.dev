@@ -43,6 +43,9 @@ export function Navbar() {
             <NavbarButton href="/blog" variant="secondary">
               My Blogs
             </NavbarButton>
+            <NavbarButton href="/journal" variant="secondary">
+              Journal
+            </NavbarButton>
           </div>
         </NavBody>
 
@@ -81,6 +84,14 @@ export function Navbar() {
                 className="w-full"
               >
                 My Blogs
+              </NavbarButton>
+              <NavbarButton
+                href="/journal"
+                onClick={() => setIsMobileMenuOpen(false)}
+                variant="secondary"
+                className="w-full"
+              >
+                Journal
               </NavbarButton>
             </div>
           </MobileNavMenu>

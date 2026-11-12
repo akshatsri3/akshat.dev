@@ -52,9 +52,25 @@ export const isAdmin = (): boolean => {
   return localStorage.getItem("portfolio_admin") === "true";
 };
 
+export const getAdminToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+  const token = localStorage.getItem("portfolio_admin_token");
+  if (token) return token;
+  if (localStorage.getItem("portfolio_admin") === "true") return "Akshat321!";
+  if (typeof document !== "undefined") {
+    const match = document.cookie.match(/portfolio_admin_token=([^;]+)/);
+    if (match) return decodeURIComponent(match[1]);
+  }
+  return null;
+};
+
 export const adminLogin = (passcode: string): boolean => {
   if (passcode === "Akshat321!") {
     localStorage.setItem("portfolio_admin", "true");
+    localStorage.setItem("portfolio_admin_token", passcode);
+    if (typeof document !== "undefined") {
+      document.cookie = `portfolio_admin_token=${encodeURIComponent(passcode)}; path=/; max-age=604800; SameSite=Lax`;
+    }
     return true;
   }
   return false;
@@ -62,6 +78,10 @@ export const adminLogin = (passcode: string): boolean => {
 
 export const adminLogout = () => {
   localStorage.removeItem("portfolio_admin");
+  localStorage.removeItem("portfolio_admin_token");
+  if (typeof document !== "undefined") {
+    document.cookie = "portfolio_admin_token=; path=/; max-age=0";
+  }
 };
 
 export const saveBlog = async (blog: Omit<BlogPost, "id" | "date" | "likes">) => {

@@ -11,7 +11,7 @@ export function Footer() {
   const pathname = usePathname();
 
   const handleAdminCheck = () => {
-    if (!pathname?.startsWith("/blog")) return;
+    if (!pathname?.startsWith("/blog") && !pathname?.startsWith("/journal")) return;
     const newClicks = clicks + 1;
     if (newClicks >= 3) {
       setClicks(0);
