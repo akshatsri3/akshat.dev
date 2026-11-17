@@ -34,6 +34,10 @@ export interface JournalPhoto {
   id: string;
   trip_id: string;
   image_url: string;
+  media_type?: "image" | "video";
+  video_url?: string | null;
+  thumbnail_url?: string | null;
+  duration?: number | null;
   caption: string | null;
   location_name: string | null;
   taken_at: string | null;
@@ -609,27 +613,47 @@ export async function saveTripHighlights(
   }
 }
 
+export interface UploadMediaResult {
+  url: string;
+  media_type: "image" | "video";
+  path: string;
+}
+
 /**
- * Uploads an image to the 'journal' Supabase storage bucket via the server API.
- * Returns the public image URL.
+ * Uploads a media file (photo or video) to the 'journal' Supabase storage bucket via the server API.
+ * Photos are stored in `${tripId}/...` and videos are stored in `videos/${tripId}/...`.
  */
-export async function uploadJournalImage(
+export async function uploadJournalMedia(
   file: File,
   tripId: string = "general"
-): Promise<string> {
+): Promise<UploadMediaResult> {
   if (!isAdmin()) {
     throw new Error("Unauthorized: admin session required.");
   }
 
-  // Pre-validate file type
-  const allowed = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"];
-  if (!allowed.includes(file.type)) {
-    throw new Error("Invalid image format. Allowed: JPEG, PNG, WebP, AVIF, GIF.");
+  const allowedImageTypes = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/avif",
+    "image/gif",
+  ];
+  const allowedVideoTypes = ["video/mp4", "video/webm"];
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  const isVideo = allowedVideoTypes.includes(file.type) || ext === "mp4" || ext === "webm";
+  const isImage = allowedImageTypes.includes(file.type) || ["jpg", "jpeg", "png", "webp", "avif", "gif"].includes(ext);
+
+  if (!isVideo && !isImage) {
+    throw new Error(
+      `Unsupported file format for "${file.name}". Supported: Photos (JPEG, PNG, WebP, AVIF, GIF) and Videos (MP4, WebM).`
+    );
   }
 
-  // Pre-validate file size (10MB)
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error("File exceeds 10MB maximum limit.");
+  const maxBytes = isVideo ? 100 * 1024 * 1024 : 15 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    const limitStr = isVideo ? "100MB" : "15MB";
+    const fileMB = (file.size / (1024 * 1024)).toFixed(1);
+    throw new Error(`File "${file.name}" (${fileMB}MB) exceeds the maximum allowed limit of ${limitStr}.`);
   }
 
   const token = getAdminToken() || "Akshat321!";
@@ -647,14 +671,30 @@ export async function uploadJournalImage(
 
   const data = await res.json();
   if (!res.ok || !data.success) {
-    throw new Error(data.error || "Image upload failed.");
+    throw new Error(data.error || "Media upload failed.");
   }
 
-  return data.url;
+  return {
+    url: data.url,
+    media_type: data.media_type || (isVideo ? "video" : "image"),
+    path: data.path,
+  };
 }
 
 /**
- * Deletes a single image from Supabase storage.
+ * Uploads an image to the 'journal' Supabase storage bucket via the server API.
+ * Returns the public image URL. Retained for backwards compatibility.
+ */
+export async function uploadJournalImage(
+  file: File,
+  tripId: string = "general"
+): Promise<string> {
+  const result = await uploadJournalMedia(file, tripId);
+  return result.url;
+}
+
+/**
+ * Deletes a single media item (image or video) from Supabase storage.
  */
 export async function deleteJournalImage(url: string): Promise<void> {
   if (!isAdmin() || !url) return;
@@ -663,8 +703,91 @@ export async function deleteJournalImage(url: string): Promise<void> {
     method: "POST",
     headers: getAdminHeaders(),
     body: JSON.stringify({
-      action: "deleteImage",
+      action: "deleteMedia",
       url,
     }),
-  }).catch((err) => console.warn("Failed to delete storage image:", err));
+  }).catch((err) => console.warn("Failed to delete storage media:", err));
+}
+
+/**
+ * Extracts metadata (duration and optional poster snapshot) from a video File.
+ */
+export async function extractVideoMetadata(
+  file: File
+): Promise<{ duration: number; thumbnailDataUrl?: string }> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined") {
+      return resolve({ duration: 0 });
+    }
+    try {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.muted = true;
+      video.playsInline = true;
+      const url = URL.createObjectURL(file);
+      video.src = url;
+
+      let resolved = false;
+      const finish = (result: { duration: number; thumbnailDataUrl?: string }) => {
+        if (resolved) return;
+        resolved = true;
+        try {
+          URL.revokeObjectURL(url);
+          video.remove();
+        } catch {}
+        resolve(result);
+      };
+
+      video.onloadedmetadata = () => {
+        const duration = Math.round(video.duration || 0);
+        // Seek to 0.5s or midpoint to get a good preview frame
+        video.currentTime = Math.min(0.5, Math.max(0, (video.duration || 1) / 2));
+      };
+
+      video.onseeked = () => {
+        const duration = Math.round(video.duration || 0);
+        try {
+          const canvas = document.createElement("canvas");
+          const targetW = Math.min(video.videoWidth || 640, 640);
+          canvas.width = targetW;
+          const scale = targetW / (video.videoWidth || 640);
+          canvas.height = (video.videoHeight || 360) * scale;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const thumbnailDataUrl = canvas.toDataURL("image/jpeg", 0.8);
+            finish({ duration, thumbnailDataUrl });
+            return;
+          }
+        } catch {
+          // Canvas capture failure fallback
+        }
+        finish({ duration });
+      };
+
+      video.onerror = () => {
+        finish({ duration: 0 });
+      };
+
+      // Fallback timer if metadata loading or seek takes too long
+      setTimeout(() => {
+        const d = Math.round(video.duration || 0);
+        finish({ duration: isNaN(d) ? 0 : d });
+      }, 3500);
+    } catch {
+      resolve({ duration: 0 });
+    }
+  });
+}
+
+/**
+ * Formats a duration in seconds to M:SS (e.g. 15 -> "0:15", 75 -> "1:15")
+ */
+export function formatDuration(seconds?: number | null): string {
+  if (seconds === null || seconds === undefined || isNaN(seconds) || seconds <= 0) {
+    return "";
+  }
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
 }

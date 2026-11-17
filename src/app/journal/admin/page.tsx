@@ -26,6 +26,9 @@ import {
   Compass,
   Loader2,
   Image as ImageIcon,
+  Play,
+  Film,
+  Video,
 } from "lucide-react";
 import {
   isAdmin,
@@ -44,6 +47,10 @@ import {
   saveTripLocations,
   saveTripHighlights,
   uploadJournalImage,
+  uploadJournalMedia,
+  extractVideoMetadata,
+  formatDuration,
+  deleteJournalImage,
   generateSlug,
   JournalTrip,
   JournalPhoto,
@@ -107,9 +114,10 @@ export default function JournalAdminPage() {
   const [locations, setLocations] = useState<Partial<JournalLocation>[]>([]);
   const [highlights, setHighlights] = useState<Partial<JournalHighlight>[]>([]);
 
-  // Image Uploading States
+  // Image & Video Uploading States
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState("");
   const coverInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -148,26 +156,58 @@ export default function JournalAdminPage() {
     try {
       setUploadingGallery(true);
       const tripId = editingTripId || "new-" + Date.now();
-      const uploadPromises = Array.from(files).map((file) =>
-        uploadJournalImage(file, tripId)
-      );
-      const urls = await Promise.all(uploadPromises);
-      const newPhotos: Partial<JournalPhoto>[] = urls.map((url, i) => ({
-        image_url: url,
-        caption: "",
-        location_name: "",
-        taken_at: "",
-        display_order: photos.length + i,
-      }));
-      setPhotos((prev) => [...prev, ...newPhotos]);
+      const fileList = Array.from(files);
+      const newItems: Partial<JournalPhoto>[] = [];
+      let successCount = 0;
+
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        const isVideo =
+          file.type.startsWith("video/") ||
+          Boolean(file.name.match(/\.(mp4|webm)$/i));
+
+        setUploadProgressText(
+          `Uploading ${i + 1} of ${fileList.length}: ${file.name}`
+        );
+
+        let videoMeta: { duration: number; thumbnailDataUrl?: string } | null = null;
+        if (isVideo) {
+          try {
+            videoMeta = await extractVideoMetadata(file);
+          } catch (metaErr) {
+            console.warn("Could not extract video metadata:", metaErr);
+          }
+        }
+
+        const uploaded = await uploadJournalMedia(file, tripId);
+        successCount++;
+
+        newItems.push({
+          media_type: uploaded.media_type,
+          image_url:
+            uploaded.media_type === "video"
+              ? videoMeta?.thumbnailDataUrl || ""
+              : uploaded.url,
+          video_url: uploaded.media_type === "video" ? uploaded.url : null,
+          thumbnail_url: videoMeta?.thumbnailDataUrl || null,
+          duration: videoMeta?.duration || null,
+          caption: "",
+          location_name: "",
+          taken_at: "",
+          display_order: photos.length + newItems.length,
+        });
+      }
+
+      setPhotos((prev) => [...prev, ...newItems]);
       showNotification(
         "success",
-        `Uploaded ${urls.length} photo${urls.length > 1 ? "s" : ""} successfully.`
+        `Uploaded ${successCount} media item${successCount > 1 ? "s" : ""} (photos & videos) successfully.`
       );
     } catch (err: any) {
-      showNotification("error", err?.message || "Failed to upload gallery photos.");
+      showNotification("error", err?.message || "Failed to upload gallery media.");
     } finally {
       setUploadingGallery(false);
+      setUploadProgressText("");
       if (e.target) e.target.value = "";
     }
   };
@@ -349,12 +389,16 @@ export default function JournalAdminPage() {
     }
   };
 
-  // Photo handlers
-  const handleAddPhoto = () => {
+  // Media handlers (Photos & Videos)
+  const handleAddMedia = (mediaType: "image" | "video" = "image") => {
     setPhotos((prev) => [
       ...prev,
       {
+        media_type: mediaType,
         image_url: "",
+        video_url: mediaType === "video" ? "" : null,
+        thumbnail_url: null,
+        duration: null,
         caption: "",
         location_name: "",
         taken_at: "",
@@ -363,7 +407,17 @@ export default function JournalAdminPage() {
     ]);
   };
 
+  const handleAddPhoto = () => handleAddMedia("image");
+  const handleAddVideo = () => handleAddMedia("video");
+
   const handleRemovePhoto = (index: number) => {
+    const item = photos[index];
+    if (item) {
+      const urlToDelete = item.video_url || item.image_url;
+      if (urlToDelete && urlToDelete.includes("/storage/v1/object/public/journal/")) {
+        deleteJournalImage(urlToDelete);
+      }
+    }
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -542,7 +596,7 @@ export default function JournalAdminPage() {
                 { label: "Total Journeys", value: stats.total, color: "#F5F1EB" },
                 { label: "Published Journeys", value: stats.published, color: "#22c55e" },
                 { label: "Draft Journeys", value: stats.drafts, color: "#eab308" },
-                { label: "Total Photographs", value: stats.totalPhotos, color: "oklch(0.65 0.25 260)" },
+                { label: "Total Media Items", value: stats.totalPhotos, color: "oklch(0.65 0.25 260)" },
               ].map((card, i) => (
                 <div
                   key={i}
@@ -809,7 +863,7 @@ export default function JournalAdminPage() {
               {[
                 { id: "basic", label: "A. Basic Info", icon: FileText },
                 { id: "travel", label: "B. Travel Details", icon: Compass },
-                { id: "media", label: "C. Photography", icon: Camera },
+                { id: "media", label: "C. Media & Gallery", icon: Film },
                 { id: "story", label: "D. POV Story", icon: Edit3 },
                 { id: "locations", label: "E. Places Visited", icon: MapPin },
                 { id: "highlights", label: "F. Highlights", icon: Sparkles },
@@ -1121,18 +1175,18 @@ export default function JournalAdminPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <h4 className="text-sm font-semibold text-[#F5F1EB] flex items-center gap-2">
-                          <Camera className="size-4 text-[oklch(0.65 0.25 260)]" />
-                          <span>Gallery Photographs ({photos.length})</span>
+                          <Film className="size-4 text-[oklch(0.65 0.25 260)]" />
+                          <span>Gallery Media — Photos & Videos ({photos.length})</span>
                         </h4>
                         <p className="text-xs text-[#A3A3A3] mt-0.5">
-                          Upload multiple photos at once. They will appear in the editorial masonry grid and lightbox.
+                          Select multiple photos (JPEG, PNG, WebP) and short videos (MP4, WebM) together. They will appear in the editorial gallery and lightbox.
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <input
                           ref={galleryInputRef}
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/webp,image/avif,image/gif,video/mp4,video/webm"
                           multiple
                           onChange={handleGalleryUpload}
                           className="hidden"
@@ -1148,127 +1202,226 @@ export default function JournalAdminPage() {
                           ) : (
                             <Upload className="size-3.5" />
                           )}
-                          <span>{uploadingGallery ? "Uploading..." : "Upload Photos"}</span>
+                          <span>{uploadingGallery ? "Uploading..." : "Upload Media"}</span>
                         </button>
                         <button
                           type="button"
                           onClick={handleAddPhoto}
                           className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[#262626] text-[#A3A3A3] hover:text-[#F5F1EB] hover:border-[oklch(0.65 0.25 260)] transition-colors inline-flex items-center gap-1"
+                          title="Add photo by URL"
                         >
-                          <Plus className="size-3.5" />
-                          <span>Add URL</span>
+                          <Camera className="size-3.5" />
+                          <span>+ Photo URL</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAddVideo}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[#262626] text-[#A3A3A3] hover:text-[#F5F1EB] hover:border-[oklch(0.65 0.25 260)] transition-colors inline-flex items-center gap-1"
+                          title="Add video by URL"
+                        >
+                          <Film className="size-3.5" />
+                          <span>+ Video URL</span>
                         </button>
                       </div>
                     </div>
 
+                    {/* Progress Indicator */}
+                    {uploadingGallery && uploadProgressText && (
+                      <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 flex items-center gap-2 text-xs text-primary font-medium">
+                        <Loader2 className="size-3.5 animate-spin shrink-0" />
+                        <span>{uploadProgressText}</span>
+                      </div>
+                    )}
+
                     {photos.length === 0 ? (
                       <div className="py-10 text-center border border-dashed border-[#262626] rounded-xl bg-[#0a0a0a]/50">
-                        <Camera className="size-8 text-[#A3A3A3]/40 mx-auto mb-2" />
+                        <Film className="size-8 text-[#A3A3A3]/40 mx-auto mb-2" />
                         <p className="text-xs text-[#A3A3A3]">
-                          No gallery photographs added yet. Click &quot;Upload Photos&quot; to choose files.
+                          No gallery media added yet. Click &quot;Upload Media&quot; to choose photos and short videos.
                         </p>
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        {photos.map((photo, i) => (
-                          <div
-                            key={i}
-                            className="p-3.5 rounded-xl border border-[#262626] bg-[#0a0a0a] flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between"
-                          >
-                            {/* Thumbnail */}
-                            {photo.image_url ? (
-                              <div className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border border-[#262626] bg-[#141414]">
-                                <Image
-                                  src={photo.image_url}
-                                  alt={photo.caption || "Thumbnail"}
-                                  fill
-                                  unoptimized
-                                  className="object-cover"
+                        {photos.map((photo, i) => {
+                          const isVideo =
+                            photo.media_type === "video" ||
+                            Boolean(photo.video_url) ||
+                            Boolean(photo.image_url?.match(/\.(mp4|webm)($|\?)/i));
+                          const mediaUrl = photo.video_url || photo.image_url || "";
+                          const posterUrl =
+                            photo.thumbnail_url ||
+                            (!photo.image_url?.match(/\.(mp4|webm)($|\?)/i) ? photo.image_url : null);
+
+                          return (
+                            <div
+                              key={i}
+                              className="p-3.5 rounded-xl border border-[#262626] bg-[#0a0a0a] flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between"
+                            >
+                              {/* Thumbnail / Video Preview */}
+                              <div className="relative w-16 h-16 shrink-0 rounded-lg overflow-hidden border border-[#262626] bg-[#141414] flex items-center justify-center">
+                                {isVideo ? (
+                                  <>
+                                    {posterUrl ? (
+                                      <Image
+                                        src={posterUrl}
+                                        alt={photo.caption || "Video thumbnail"}
+                                        fill
+                                        unoptimized
+                                        className="object-cover"
+                                      />
+                                    ) : mediaUrl ? (
+                                      <video
+                                        src={mediaUrl}
+                                        preload="metadata"
+                                        muted
+                                        className="w-full h-full object-cover pointer-events-none"
+                                      />
+                                    ) : (
+                                      <Film className="size-6 text-[#A3A3A3]/40" />
+                                    )}
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center pointer-events-none">
+                                      <Play className="size-4 fill-white text-white" />
+                                    </div>
+                                    {photo.duration && (
+                                      <div className="absolute bottom-0.5 right-0.5 px-1 rounded text-[8px] font-mono bg-black/80 text-white font-semibold">
+                                        {formatDuration(photo.duration)}
+                                      </div>
+                                    )}
+                                  </>
+                                ) : photo.image_url ? (
+                                  <Image
+                                    src={photo.image_url}
+                                    alt={photo.caption || "Thumbnail"}
+                                    fill
+                                    unoptimized
+                                    className="object-cover"
+                                  />
+                                ) : (
+                                  <ImageIcon className="size-6 text-[#A3A3A3]/40" />
+                                )}
+                              </div>
+
+                              {/* Inputs & Type Tag */}
+                              <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-2 w-full">
+                                <div className="flex items-center gap-1.5 md:col-span-1">
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20 shrink-0 flex items-center gap-1">
+                                    {isVideo ? <Film className="size-2.5" /> : <Camera className="size-2.5" />}
+                                    {isVideo ? "Video" : "Photo"}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={mediaUrl}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPhotos((prev) =>
+                                        prev.map((p, idx) =>
+                                          idx === i
+                                            ? {
+                                                ...p,
+                                                image_url: isVideo ? p.image_url : val,
+                                                video_url: isVideo ? val : p.video_url,
+                                              }
+                                            : p
+                                        )
+                                      );
+                                    }}
+                                    placeholder={isVideo ? "Video URL (MP4/WebM) *" : "Image URL *"}
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-[#262626] bg-[#141414] text-xs text-[#F5F1EB] focus:outline-none focus:border-[oklch(0.65 0.25 260)] font-mono"
+                                  />
+                                </div>
+                                <input
+                                  type="text"
+                                  value={photo.caption || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setPhotos((prev) =>
+                                      prev.map((p, idx) =>
+                                        idx === i ? { ...p, caption: val } : p
+                                      )
+                                    );
+                                  }}
+                                  placeholder="Caption (e.g. Sunset view over the ocean)"
+                                  className="px-3 py-1.5 rounded-lg border border-[#262626] bg-[#141414] text-xs text-[#F5F1EB] focus:outline-none focus:border-[oklch(0.65 0.25 260)]"
                                 />
+                                <input
+                                  type="text"
+                                  value={photo.location_name || ""}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setPhotos((prev) =>
+                                      prev.map((p, idx) =>
+                                        idx === i ? { ...p, location_name: val } : p
+                                      )
+                                    );
+                                  }}
+                                  placeholder="Spot / Location name"
+                                  className="px-3 py-1.5 rounded-lg border border-[#262626] bg-[#141414] text-xs text-[#F5F1EB] focus:outline-none focus:border-[oklch(0.65 0.25 260)]"
+                                />
+                                {isVideo ? (
+                                  <input
+                                    type="number"
+                                    value={photo.duration ?? ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value ? parseFloat(e.target.value) : null;
+                                      setPhotos((prev) =>
+                                        prev.map((p, idx) =>
+                                          idx === i ? { ...p, duration: val } : p
+                                        )
+                                      );
+                                    }}
+                                    placeholder="Duration (seconds)"
+                                    className="px-3 py-1.5 rounded-lg border border-[#262626] bg-[#141414] text-xs text-[#F5F1EB] focus:outline-none focus:border-[oklch(0.65 0.25 260)]"
+                                  />
+                                ) : (
+                                  <input
+                                    type="text"
+                                    value={photo.taken_at || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPhotos((prev) =>
+                                        prev.map((p, idx) =>
+                                          idx === i ? { ...p, taken_at: val } : p
+                                        )
+                                      );
+                                    }}
+                                    placeholder="Date / Year (e.g. Nov 2026)"
+                                    className="px-3 py-1.5 rounded-lg border border-[#262626] bg-[#141414] text-xs text-[#F5F1EB] focus:outline-none focus:border-[oklch(0.65 0.25 260)]"
+                                  />
+                                )}
                               </div>
-                            ) : (
-                              <div className="w-16 h-16 shrink-0 rounded-lg border border-[#262626] bg-[#141414] flex items-center justify-center text-[#A3A3A3]/40">
-                                <ImageIcon className="size-6" />
+
+                              {/* Order & Remove Controls */}
+                              <div className="flex items-center gap-1 self-end sm:self-center shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMovePhoto(i, "up")}
+                                  disabled={i === 0}
+                                  className="p-1 rounded text-[#A3A3A3] hover:text-[#F5F1EB] disabled:opacity-30"
+                                  title="Move up"
+                                >
+                                  <ChevronUp className="size-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMovePhoto(i, "down")}
+                                  disabled={i === photos.length - 1}
+                                  className="p-1 rounded text-[#A3A3A3] hover:text-[#F5F1EB] disabled:opacity-30"
+                                  title="Move down"
+                                >
+                                  <ChevronDown className="size-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemovePhoto(i)}
+                                  className="p-1 rounded text-red-400 hover:bg-red-500/10 transition-colors"
+                                  title="Remove media item"
+                                >
+                                  <Trash2 className="size-4" />
+                                </button>
                               </div>
-                            )}
-
-                            {/* Inputs */}
-                            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2 w-full">
-                              <input
-                                type="text"
-                                value={photo.image_url || ""}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setPhotos((prev) =>
-                                    prev.map((p, idx) =>
-                                      idx === i ? { ...p, image_url: val } : p
-                                    )
-                                  );
-                                }}
-                                placeholder="Image URL *"
-                                className="px-3 py-1.5 rounded-lg border border-[#262626] bg-[#141414] text-xs text-[#F5F1EB] focus:outline-none focus:border-[oklch(0.65 0.25 260)]"
-                              />
-                              <input
-                                type="text"
-                                value={photo.caption || ""}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setPhotos((prev) =>
-                                    prev.map((p, idx) =>
-                                      idx === i ? { ...p, caption: val } : p
-                                    )
-                                  );
-                                }}
-                                placeholder="Caption (e.g. Sunset view over the ocean)"
-                                className="px-3 py-1.5 rounded-lg border border-[#262626] bg-[#141414] text-xs text-[#F5F1EB] focus:outline-none focus:border-[oklch(0.65 0.25 260)]"
-                              />
-                              <input
-                                type="text"
-                                value={photo.location_name || ""}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setPhotos((prev) =>
-                                    prev.map((p, idx) =>
-                                      idx === i ? { ...p, location_name: val } : p
-                                    )
-                                  );
-                                }}
-                                placeholder="Spot / Location name"
-                                className="px-3 py-1.5 rounded-lg border border-[#262626] bg-[#141414] text-xs text-[#F5F1EB] focus:outline-none focus:border-[oklch(0.65 0.25 260)]"
-                              />
                             </div>
-
-                            {/* Order & Remove Controls */}
-                            <div className="flex items-center gap-1 self-end sm:self-center shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleMovePhoto(i, "up")}
-                                disabled={i === 0}
-                                className="p-1 rounded text-[#A3A3A3] hover:text-[#F5F1EB] disabled:opacity-30"
-                                title="Move up"
-                              >
-                                <ChevronUp className="size-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleMovePhoto(i, "down")}
-                                disabled={i === photos.length - 1}
-                                className="p-1 rounded text-[#A3A3A3] hover:text-[#F5F1EB] disabled:opacity-30"
-                                title="Move down"
-                              >
-                                <ChevronDown className="size-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemovePhoto(i)}
-                                className="p-1 rounded text-red-400 hover:bg-red-500/10 transition-colors"
-                                title="Remove photo"
-                              >
-                                <Trash2 className="size-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

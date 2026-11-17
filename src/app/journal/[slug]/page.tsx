@@ -295,7 +295,7 @@ export default function TripDetailPage({
             </div>
             {photos.length > 0 && (
               <span className="text-xs uppercase tracking-widest text-muted-foreground font-medium">
-                {photos.length} {photos.length === 1 ? "Photograph" : "Photographs"}
+                {photos.length} {photos.length === 1 ? "Memory" : "Photos & Videos"}
               </span>
             )}
           </div>

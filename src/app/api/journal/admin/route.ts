@@ -162,7 +162,7 @@ export async function POST(req: Request) {
   const supabase = getServerSupabaseAdmin();
   const contentType = req.headers.get("content-type") || "";
 
-  // Handle multipart form data for image upload
+  // Handle multipart form data for media upload (photos & videos)
   if (contentType.includes("multipart/form-data")) {
     try {
       const formData = await req.formData();
@@ -173,38 +173,70 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "No file provided" }, { status: 400 });
       }
 
-      // Validate MIME type
-      const allowedTypes = [
+      const fileName = file.name || "media";
+      const fileExt = fileName.split(".").pop()?.toLowerCase() || "";
+
+      // Validate MIME type & file extension
+      const allowedImageTypes = [
         "image/jpeg",
         "image/png",
         "image/webp",
         "image/avif",
         "image/gif",
       ];
-      if (!allowedTypes.includes(file.type)) {
+      const allowedVideoTypes = [
+        "video/mp4",
+        "video/webm",
+      ];
+
+      const isVideo =
+        allowedVideoTypes.includes(file.type) ||
+        fileExt === "mp4" ||
+        fileExt === "webm";
+
+      const isImage =
+        allowedImageTypes.includes(file.type) ||
+        ["jpg", "jpeg", "png", "webp", "avif", "gif"].includes(fileExt);
+
+      if (!isVideo && !isImage) {
         return NextResponse.json(
-          { error: `Unsupported image type: ${file.type}. Allowed: JPEG, PNG, WebP, AVIF, GIF` },
+          {
+            error: `Unsupported file format (${file.type || fileExt}). Allowed: Photos (JPEG, PNG, WebP, AVIF, GIF) and Videos (MP4, WebM).`,
+          },
           { status: 400 }
         );
       }
 
-      // Validate File Size (10MB max)
-      const maxBytes = 10 * 1024 * 1024;
+      // Validate File Size (15MB for images, 100MB for short videos)
+      const maxImageBytes = 15 * 1024 * 1024;
+      const maxVideoBytes = 100 * 1024 * 1024;
+      const maxBytes = isVideo ? maxVideoBytes : maxImageBytes;
+
       if (file.size > maxBytes) {
+        const limitStr = isVideo ? "100MB" : "15MB";
+        const fileMB = (file.size / (1024 * 1024)).toFixed(1);
         return NextResponse.json(
-          { error: "File exceeds maximum size of 10MB." },
+          { error: `File "${fileName}" (${fileMB}MB) exceeds the maximum allowed limit of ${limitStr}.` },
           { status: 400 }
         );
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
-      const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-      const filePath = `${tripId}/${Date.now()}-${cleanFileName}`;
+      const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+
+      // Save videos inside a separate `videos/` folder in the journal storage bucket
+      const filePath = isVideo
+        ? `videos/${tripId}/${Date.now()}-${cleanFileName}`
+        : `${tripId}/${Date.now()}-${cleanFileName}`;
+
+      const uploadContentType = isVideo
+        ? (fileExt === "webm" || file.type === "video/webm" ? "video/webm" : "video/mp4")
+        : (file.type || "image/jpeg");
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from("journal")
         .upload(filePath, buffer, {
-          contentType: file.type,
+          contentType: uploadContentType,
           upsert: true,
         });
 
@@ -224,11 +256,12 @@ export async function POST(req: Request) {
         success: true,
         url: publicUrlData.publicUrl,
         path: uploadData.path,
+        media_type: isVideo ? "video" : "image",
       });
     } catch (err: any) {
       console.error("[Storage Upload Error]:", err);
       return NextResponse.json(
-        { error: err?.message || "Failed to upload image." },
+        { error: err?.message || "Failed to upload media." },
         { status: 500 }
       );
     }
@@ -361,26 +394,62 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, trip: data });
     }
 
-    // Save Photos (delete existing for trip then re-insert)
+    // Save Photos & Videos (delete existing for trip then re-insert)
     if (action === "savePhotos") {
       const { tripId, photos } = body;
       await supabase.from("trip_photos").delete().eq("trip_id", tripId);
 
       if (photos && photos.length > 0) {
-        const formatted = photos.map((p: any, i: number) => ({
-          trip_id: tripId,
-          image_url: p.image_url,
-          caption: p.caption || null,
-          location_name: p.location_name || null,
-          taken_at: p.taken_at || null,
-          display_order: typeof p.display_order === "number" ? p.display_order : i,
-        }));
+        const formatted = photos.map((p: any, i: number) => {
+          const isVideo =
+            p.media_type === "video" ||
+            Boolean(p.video_url) ||
+            Boolean(p.image_url && p.image_url.match(/\.(mp4|webm)($|\?)/i));
+          const mediaType = isVideo ? "video" : "image";
+          const mediaUrl = p.video_url || p.image_url || "";
+          const imgUrl = p.image_url || p.thumbnail_url || mediaUrl;
+
+          return {
+            trip_id: tripId,
+            media_type: mediaType,
+            image_url: imgUrl,
+            video_url: isVideo ? mediaUrl : null,
+            thumbnail_url: p.thumbnail_url || (!isVideo ? imgUrl : null),
+            duration: typeof p.duration === "number" ? p.duration : (p.duration ? parseFloat(p.duration) : null),
+            caption: p.caption || null,
+            location_name: p.location_name || null,
+            taken_at: p.taken_at || null,
+            display_order: typeof p.display_order === "number" ? p.display_order : i,
+          };
+        });
+
+        // Try inserting with full video support columns
         const { error } = await supabase.from("trip_photos").insert(formatted);
         if (error) {
-          return NextResponse.json(
-            { error: error.message, code: error.code },
-            { status: 400 }
-          );
+          // If columns don't exist yet (migration 004 not run yet), fall back to base columns
+          if (error.code === "42703" || error.message?.includes("column")) {
+            console.warn("[savePhotos] Extended columns not found in database, falling back to base schema:", error.message);
+            const fallbackFormatted = formatted.map((p: any) => ({
+              trip_id: p.trip_id,
+              image_url: p.image_url || p.video_url || "",
+              caption: p.caption,
+              location_name: p.location_name,
+              taken_at: p.taken_at,
+              display_order: p.display_order,
+            }));
+            const { error: fallbackError } = await supabase.from("trip_photos").insert(fallbackFormatted);
+            if (fallbackError) {
+              return NextResponse.json(
+                { error: fallbackError.message, code: fallbackError.code },
+                { status: 400 }
+              );
+            }
+          } else {
+            return NextResponse.json(
+              { error: error.message, code: error.code },
+              { status: 400 }
+            );
+          }
         }
       }
       return NextResponse.json({ success: true });
@@ -438,8 +507,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    // Delete single image from storage
-    if (action === "deleteImage") {
+    // Delete single media item (image or video) from storage
+    if (action === "deleteImage" || action === "deleteMedia") {
       const { url } = body;
       if (url && typeof url === "string" && url.includes("/storage/v1/object/public/journal/")) {
         const path = url.split("/storage/v1/object/public/journal/")[1];
